@@ -1,15 +1,34 @@
-Crédito PME API (FastAPI)
+Crédito PME API (FastAPI) 🚀
 
-API para simular score e limite sugerido para pequenas e médias empresas.
 
-Requisitos
 
-Python 3.12+ (Windows)
 
-PowerShell
+
+
+
+
+API para simular score e limite sugerido para pequenas e médias empresas (PME).
+
+📑 Sumário
 
 Como rodar
-Opção A — com 2 cliques (recomendado)
+
+Configuração (.env)
+
+Endpoints
+
+Exemplos de requisição
+
+Estrutura do projeto
+
+Testes
+
+Dicas (PyCharm)
+
+Licença
+
+✅ Como rodar
+Opção A — com 2 cliques (recomendada)
 
 Primeira vez (instalar dependências):
 
@@ -19,35 +38,34 @@ python -m venv .venv
 pip install -r requirements.txt
 
 
-Depois: dê duplo clique em start.bat.
+Depois (sempre): dê duplo clique em start.bat.
 
 Acesse:
 
-Swagger (Docs): http://127.0.0.1:8001/docs
-
-Redoc: http://127.0.0.1:8001/redoc
+Docs (Swagger): http://127.0.0.1:8001/docs
 
 Healthcheck: http://127.0.0.1:8001/healthz
 
-Opção B — manual pelo PowerShell
+Opção B — manual (PowerShell)
 cd C:\Users\junin\credito-pme
 .\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8001
 
-Configuração (.env)
+🔧 Configuração (.env)
 
-O projeto lê variáveis de ambiente via python-dotenv.
+O projeto lê variáveis via python-dotenv.
 
-Exemplo de .env (você pode copiar de .env.example):
+Exemplo (copie de .env.example para .env):
 
 APP_NAME="Crédito PME API (DEV)"
 
-Endpoints
-POST /v1/score
+🔗 Endpoints
+Método	Rota	Descrição
+GET	/healthz	Healthcheck simples
+POST	/v1/score	Calcula score e limite_sugerido
+POST	/v1/score/motivos	Mesmo cálculo + breakdown dos pontos
 
-Calcula score e limite_sugerido.
-
-Request (JSON):
+Request base (JSON):
 
 {
   "cnpj": "00.000.000/0001-00",
@@ -62,7 +80,7 @@ Request (JSON):
 Também aceita faturamento_anual (em vez de faturamento_mensal) e
 meses_operando (em vez de tempo_atividade_meses).
 
-Response (200):
+Response /v1/score (200):
 
 {
   "score": 640,
@@ -70,11 +88,8 @@ Response (200):
   "limite_sugerido": 9600
 }
 
-POST /v1/score/motivos
 
-Mesma entrada do /v1/score, mas retorna também o detalhamento dos pontos.
-
-Response (200):
+Response /v1/score/motivos (200):
 
 {
   "score": 640,
@@ -89,59 +104,61 @@ Response (200):
   ]
 }
 
-Teste rápido por linha de comando (opcional)
+<details> <summary><b>Notas de cálculo</b></summary> Base 300 + pontos por faturamento, tempo de atividade, inadimplência, nº de empregados e bônus por setor. Score limitado a 0–1000. Aprovado se ≥ 600. Limite proporcional ao faturamento mensal. </details>
+🧪 Exemplos de requisição
 
-PowerShell:
+PowerShell (Invoke-WebRequest):
 
 $body = '{"cnpj":"00.000.000/0001-00","faturamento_mensal":15000,"tempo_atividade_meses":18,"inadimplente":false,"setor":"Comercio","empregados":3}'
-Invoke-WebRequest -Method POST "http://127.0.0.1:8001/v1/score" -ContentType "application/json" -Body $body | Select-Object StatusCode,Content
+$r = Invoke-WebRequest -Method POST "http://127.0.0.1:8001/v1/score" -ContentType "application/json" -Body $body
+$r.StatusCode
+$r.Content
 
 
-curl:
+curl (Windows PowerShell exige aspas escapadas):
 
-curl -X POST "http://127.0.0.1:8001/v1/score" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"cnpj\":\"00.000.000/0001-00\",\"faturamento_mensal\":15000,\"tempo_atividade_meses\":18,\"inadimplente\":false,\"setor\":\"Comercio\",\"empregados\":3}"
+curl -X POST "http://127.0.0.1:8001/v1/score" -H "Content-Type: application/json" -d "{\"cnpj\":\"00.000.000/0001-00\",\"faturamento_mensal\":15000,\"tempo_atividade_meses\":18,\"inadimplente\":false,\"setor\":\"Comercio\",\"empregados\":3}"
 
-Executar os testes
-cd C:\Users\junin\credito-pme
-.\.venv\Scripts\Activate.ps1
-pytest -q
-
-Estrutura do projeto
+🗂 Estrutura do projeto
 credito-pme/
 ├─ app/
-│  ├─ main.py
 │  ├─ api/
 │  │  ├─ __init__.py
-│  │  └─ routes.py
+│  │  └─ routes.py           # Rotas /v1/score e /v1/score/motivos
 │  ├─ core/
 │  │  ├─ __init__.py
-│  │  ├─ errors.py
-│  │  └─ middleware.py
+│  │  ├─ errors.py           # Handlers globais de erro + resposta padrão
+│  │  └─ middleware.py       # CORS, Trace-ID, timing
 │  ├─ models/
 │  │  ├─ __init__.py
-│  │  └─ schemas.py
-│  └─ services/
-│     ├─ __init__.py
-│     └─ scoring.py
+│  │  └─ schemas.py          # Pydantic (PedidoScore, ScoreResposta, etc.)
+│  ├─ services/
+│  │  ├─ __init__.py
+│  │  └─ scoring.py          # Regras do score e motivos
+│  └─ main.py                # Cria app e inclui rotas/middlewares
 ├─ tests/
-│  └─ test_api.py
+│  └─ test_api.py            # 6 testes passando (pytest)
 ├─ .env.example
 ├─ .gitignore
 ├─ README.md
 ├─ requirements.txt
-├─ pytest.ini
 └─ start.bat
 
-Observações
+🧪 Testes
+cd C:\Users\junin\credito-pme
+.\.venv\Scripts\Activate.ps1
+pytest -q
 
-CORS liberado para * (útil para um front local).
 
-X-Trace-Id é adicionado em cada resposta para rastreio.
+Saída esperada: 6 passed
 
-Erros de validação retornam JSON padronizado.
+💡 Dicas (PyCharm)
 
-Licença
+Run/Debug: crie uma configuração do tipo Python > Module name: uvicorn, parâmetros:
+app.main:app --reload --port 8001
+
+Interpreter: use o da venv do projeto (.venv).
+
+📄 Licença
 
 Uso educacional.
