@@ -1,11 +1,3 @@
-Passo 1 — abrir e substituir
-
-1. Abra: C:\Users\junin\credito-pme\README.md (duplo clique abre no Bloco de Notas).
-
-2. Ctrl+A para selecionar tudo.
-
-3. Cole exatamente isto:
-
 # Crédito PME API (FastAPI)
 
 API para simular **score** e **limite sugerido** para pequenas e médias empresas.
