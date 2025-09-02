@@ -1,6 +1,6 @@
 # Crédito PME API (FastAPI) 🚀
 
-API para simular **score** e **limite sugerido** para pequenas e médias empresas (PME).
+API para simular **score**, **limite sugerido** e **motivos explicativos** para pequenas e médias empresas (PME), usando os dados fictícios fornecidos no desafio.
 
 ---
 
@@ -36,13 +36,12 @@ Swagger: http://127.0.0.1:8001/docs
 
 Healthcheck: http://127.0.0.1:8001/healthz
 
-### Opção B — manual (PowerShell)
+Opção B — manual (PowerShell)
 ```powershell
 cd C:\Users\junin\credito-pme
 .\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8001
 ```
-
 🔧 Configuração (.env)
 
 O projeto lê variáveis via python-dotenv.
@@ -56,72 +55,78 @@ APP_NAME="Crédito PME API (DEV)"
 ```powershell
 Método	                Rota	                          Descrição
 GET	                  /healthz	                    Healthcheck simples
-POST	                /v1/score	               Calcula score e limite_sugerido
-POST	            /v1/score/motivos	          Mesmo cálculo + breakdown dos pontos
+POST	                /v1/score	               Calcula score e limite sugerido
+POST	            /v1/score/motivos	          Mesmo cálculo + lista de motivos
 ```
-
 Request base (JSON)
 ```powershell
 {
-  "cnpj": "00.000.000/0001-00",
-  "faturamento_mensal": 15000,
-  "tempo_atividade_meses": 18,
-  "inadimplente": false,
-  "setor": "Comercio",
-  "empregados": 3
+  "empresa": "Empresa 29"
 }
-Também aceita faturamento_anual (em vez de faturamento_mensal) e
-meses_operando (em vez de tempo_atividade_meses).
 ```
-
+👉 Você pode mandar apenas o nome da empresa (a API completa os dados pelo dataset do desafio)
+ou enviar todos os campos manualmente:
+```powershell
+{
+  "empresa": "Empresa 90",
+  "receita_anual": 926500,
+  "divida_total": 286405,
+  "prazo_pagamento_dias": 98,
+  "setor": "Educação",
+  "rating": "D",
+  "noticias_recentes": "Oportunidades de parcerias surgindo."
+}
+```
 Response /v1/score (200)
 ```powershell
 {
-  "score": 640,
-  "aprovado": true,
-  "limite_sugerido": 9600
+  "empresa": "Empresa 29",
+  "score": 894,
+  "limite_sugerido": 275921,
+  "faixa_risco": "baixíssimo"
 }
 ```
 
 Response /v1/score/motivos (200)
 ```powershell
 {
-  "score": 640,
-  "aprovado": true,
-  "limite_sugerido": 9600,
-  "breakdown": [
-    {"fator": "faturamento", "pontos": 150, "motivo": "+150 por faturamento..."},
-    {"fator": "tempo_atividade", "pontos": 18, "motivo": "+18 por 18 meses..."},
-    {"fator": "inadimplencia", "pontos": 50, "motivo": "+50 sem inadimplência"},
-    {"fator": "empregados", "pontos": 10, "motivo": "+10 por 3 empregados..."},
-    {"fator": "setor", "pontos": 10, "motivo": "+10 para setor 'Comercio'"}
+  "empresa": "Empresa 29",
+  "motivos": [
+    "Dados preenchidos a partir do dataset do desafio.",
+    "Endividamento/Receita saudável (até 50%).",
+    "Rating A+ favorece aprovação.",
+    "Setor 'Tecnologia' tradicionalmente resiliente no modelo.",
+    "Notícia recente positiva."
   ]
 }
 ```
 <details> <summary><b>Notas de cálculo</b></summary>
 
-Base 300 + pontos por faturamento, tempo de atividade, inadimplência, nº de empregados e bônus por setor.
-Score limitado a 0–1000.
-Aprovado se ≥ 600.
-Limite proporcional ao faturamento mensal.
+Base do score vem do Rating (ex.: A+, B, C...).
+
+Ajustes por setor, prazo de pagamento e notícias recentes.
+
+Penalidade forte por endividamento (dívida/receita).
+
+Score limitado entre 300–900.
+
+Faixa de risco: baixíssimo / baixo / médio / alto / altíssimo.
+
+Limite sugerido = fração da receita anual ajustada pelo rating e pelo endividamento.
 
 </details>
 
-
 🧪 Exemplos de requisição
-PowerShell (Invoke-WebRequest)
+
+PowerShell (Invoke-RestMethod)
 ```powershell
-$body = '{"cnpj":"00.000.000/0001-00","faturamento_mensal":15000,"tempo_atividade_meses":18,"inadimplente":false,"setor":"Comercio","empregados":3}'
-$r = Invoke-WebRequest -Method POST "http://127.0.0.1:8001/v1/score" -ContentType "application/json" -Body $body
-$r.StatusCode
-$r.Content
+$body = @{ empresa = "Empresa 29" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://127.0.0.1:8001/v1/score" -Method POST -Body $body -ContentType "application/json"
+Invoke-RestMethod -Uri "http://127.0.0.1:8001/v1/score/motivos" -Method POST -Body $body -ContentType "application/json"
 ```
-
-curl
-
-(Windows PowerShell exige aspas escapadas):
+curl (Windows PowerShell exige aspas escapadas):
 ```powershell
-curl -X POST "http://127.0.0.1:8001/v1/score" -H "Content-Type: application/json" -d "{\"cnpj\":\"00.000.000/0001-00\",\"faturamento_mensal\":15000,\"tempo_atividade_meses\":18,\"inadimplente\":false,\"setor\":\"Comercio\",\"empregados\":3}"
+curl -X POST "http://127.0.0.1:8001/v1/score" -H "Content-Type: application/json" -d "{\"empresa\":\"Empresa 29\"}"
 ```
 
 🗂 Estrutura do projeto
@@ -137,13 +142,16 @@ credito-pme/
 │  │  └─ middleware.py       # CORS, Trace-ID, timing
 │  ├─ models/
 │  │  ├─ __init__.py
-│  │  └─ schemas.py          # Pydantic (PedidoScore, ScoreResposta, etc.)
+│  │  └─ schemas.py          # PedidoScore, ScoreResposta, MotivosResposta
 │  ├─ services/
 │  │  ├─ __init__.py
-│  │  └─ scoring.py          # Regras do score e motivos
+│  │  ├─ dataset.py          # Carrega dataset fictício (JSON/CSV/Parquet/XML)
+│  │  └─ scoring.py          # Lógica de score, limite e motivos
+│  ├─ data/
+│  │  └─ dadoscreditoficticios.json
 │  └─ main.py                # Cria app e inclui rotas/middlewares
 ├─ tests/
-│  └─ test_api.py            # 6 testes passando (pytest)
+│  └─ test_api.py            # Testes básicos com pytest
 ├─ .env.example
 ├─ .gitignore
 ├─ README.md
@@ -168,8 +176,11 @@ Run/Debug: crie uma configuração do tipo Python > Module name: uvicorn, parâm
 ```powershell
 app.main:app --reload --port 8001
 ```
-Interpreter: use o da venv do projeto (.venv).
+Marque a pasta app como Sources Root (botão direito > Mark Directory As > Sources Root) para evitar pastas vermelhas.
 
-📄 Licença
+📜 Licença
 
-Uso educacional.
+Projeto desenvolvido para fins educacionais e de avaliação técnica.  
+Uso livre para estudo e demonstração.
+
+
