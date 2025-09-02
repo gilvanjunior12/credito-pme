@@ -1,19 +1,20 @@
-from fastapi import APIRouter
+from __future__ import annotations
+from fastapi import APIRouter, HTTPException
 from app.models.schemas import PedidoScore, ScoreResposta, MotivosResposta
-from app.services.scoring import calcular_basico, calcular_com_motivos
+from app.services.scoring import calcular_score, explicar_motivos
 
-router = APIRouter(prefix="/v1")
+router = APIRouter()
 
-@router.post("/score", response_model=ScoreResposta)
-def score(pedido: PedidoScore):
-    return calcular_basico(pedido)
+@router.post("/v1/score", response_model=ScoreResposta)
+def post_score(pedido: PedidoScore) -> ScoreResposta:
+    try:
+        return calcular_score(pedido)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
-@router.post("/score/motivos", response_model=MotivosResposta)
-def score_motivos(pedido: PedidoScore):
-    resp, motivos = calcular_com_motivos(pedido)
-    return {
-        "score": resp.score,
-        "aprovado": resp.aprovado,
-        "limite_sugerido": resp.limite_sugerido,
-        "breakdown": motivos,
-    }
+@router.post("/v1/score/motivos", response_model=MotivosResposta)
+def post_motivos(pedido: PedidoScore) -> MotivosResposta:
+    try:
+        return explicar_motivos(pedido)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
