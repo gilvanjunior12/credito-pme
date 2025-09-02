@@ -1,28 +1,35 @@
-# Crédito PME API (FastAPI)
+Crédito PME API (FastAPI)
 
-API para simular **score** e **limite sugerido** para pequenas e médias empresas.
+API para simular score e limite sugerido para pequenas e médias empresas.
 
-## Requisitos
-- Python 3.12+ (Windows)
-- PowerShell
+Requisitos
 
-## Como rodar
+Python 3.12+ (Windows)
 
-### Opção A — com 2 cliques (recomendado)
-**Primeira vez (instalar dependências):**
-```powershell
+PowerShell
+
+Como rodar
+Opção A — com 2 cliques (recomendado)
+
+Primeira vez (instalar dependências):
+
 cd C:\Users\junin\credito-pme
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
+
 Depois: dê duplo clique em start.bat.
 
-Docs (Swagger): http://127.0.0.1:8001/docs
+Acesse:
+
+Swagger (Docs): http://127.0.0.1:8001/docs
+
+Redoc: http://127.0.0.1:8001/redoc
+
 Healthcheck: http://127.0.0.1:8001/healthz
 
 Opção B — manual pelo PowerShell
-
 cd C:\Users\junin\credito-pme
 .\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8001
@@ -30,6 +37,7 @@ uvicorn app.main:app --reload --port 8001
 Configuração (.env)
 
 O projeto lê variáveis de ambiente via python-dotenv.
+
 Exemplo de .env (você pode copiar de .env.example):
 
 APP_NAME="Crédito PME API (DEV)"
@@ -83,22 +91,56 @@ Response (200):
 
 Teste rápido por linha de comando (opcional)
 
-Score:
-curl -X POST "http://127.0.0.1:8001/v1/score" -H "Content-Type: application/json" -d "{\"cnpj\":\"00.000.000/0001-00\",\"faturamento_mensal\":15000,\"tempo_atividade_meses\":18,\"inadimplente\":false,\"setor\":\"Comercio\",\"empregados\":3}"
+PowerShell:
+
+$body = '{"cnpj":"00.000.000/0001-00","faturamento_mensal":15000,"tempo_atividade_meses":18,"inadimplente":false,"setor":"Comercio","empregados":3}'
+Invoke-WebRequest -Method POST "http://127.0.0.1:8001/v1/score" -ContentType "application/json" -Body $body | Select-Object StatusCode,Content
 
 
-Motivos:
-curl -X POST "http://127.0.0.1:8001/v1/score/motivos" -H "Content-Type: application/json" -d "{\"cnpj\":\"00.000.000/0001-00\",\"faturamento_mensal\":15000,\"tempo_atividade_meses\":18,\"inadimplente\":false,\"setor\":\"Comercio\",\"empregados\":3}"
+curl:
 
-Estrutura
+curl -X POST "http://127.0.0.1:8001/v1/score" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"cnpj\":\"00.000.000/0001-00\",\"faturamento_mensal\":15000,\"tempo_atividade_meses\":18,\"inadimplente\":false,\"setor\":\"Comercio\",\"empregados\":3}"
+
+Executar os testes
+cd C:\Users\junin\credito-pme
+.\.venv\Scripts\Activate.ps1
+pytest -q
+
+Estrutura do projeto
 credito-pme/
 ├─ app/
-│  └─ main.py
+│  ├─ main.py
+│  ├─ api/
+│  │  ├─ __init__.py
+│  │  └─ routes.py
+│  ├─ core/
+│  │  ├─ __init__.py
+│  │  ├─ errors.py
+│  │  └─ middleware.py
+│  ├─ models/
+│  │  ├─ __init__.py
+│  │  └─ schemas.py
+│  └─ services/
+│     ├─ __init__.py
+│     └─ scoring.py
+├─ tests/
+│  └─ test_api.py
 ├─ .env.example
 ├─ .gitignore
 ├─ README.md
 ├─ requirements.txt
+├─ pytest.ini
 └─ start.bat
+
+Observações
+
+CORS liberado para * (útil para um front local).
+
+X-Trace-Id é adicionado em cada resposta para rastreio.
+
+Erros de validação retornam JSON padronizado.
 
 Licença
 
