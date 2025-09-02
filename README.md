@@ -184,3 +184,143 @@ Projeto desenvolvido para fins educacionais e de avaliação técnica.
 Uso livre para estudo e demonstração.
 
 
+
+
+## 🧭 Desenho da Arquitetura
+
+### Visão de Contexto
+```mermaid
+graph TD
+    U[Usuário/Avaliador] -->|HTTP| GW[API FastAPI]
+    GW -->|Lê dados| DS[Dataset Fictício JSON/CSV/Parquet/XML]
+    GW -->|Logs/Traces| OBS[Observabilidade - logs + trace-id]
+    U -->|Explora| SW[Swagger UI]
+    subgraph Integrações Futuras Banco
+      LEG[Sistemas Legados / CRMs / BIs]
+    end
+    GW -->|Integrações| LEG
+```
+
+
+
+### Componentes Internos
+```mermaid
+graph TB
+  subgraph API Layer
+    R[app/api/routes.py]
+    M[app/main.py]
+  end
+
+  subgraph Core
+    ERR[app/core/errors.py]
+    MW[app/core/middleware.py]
+  end
+
+  subgraph Domínio
+    SCH[app/models/schemas.py]
+    SVC[app/services/scoring.py]
+    DATA[app/services/dataset.py]
+  end
+
+  subgraph Dados
+    FILE[app/data/dadoscreditoficticios.json]
+  end
+
+  M --> R
+  R --> SVC
+  SVC --> DATA
+  DATA --> FILE
+  M --> MW
+  M --> ERR
+  R --> SCH
+```
+
+### Fluxo de Requisição
+```mermaid
+sequenceDiagram
+  participant C as Cliente/Swagger
+  participant A as FastAPI Routes
+  participant S as Scoring Service
+  participant D as Dataset Loader (cache)
+  participant J as Dataset (JSON/CSV/Parquet/XML)
+
+  C->>A: POST /v1/score {"empresa":"Empresa 29"}
+  A->>S: calcular_score(PedidoScore)
+  S->>D: find_empresa("Empresa 29")
+  D->>J: read (se cache vazio)
+  J-->>D: registros padronizados
+  D-->>S: dados da empresa
+  S-->>A: ScoreResposta + faixa_risco + limite
+  A-->>C: 200 OK (JSON)
+```
+
+### Topologia de Deploy (mínimo → escalável)
+```mermaid
+graph LR
+  subgraph DEV/Local
+    PS[PowerShell/Start.bat] --> UV[Uvicorn]
+    UV --> APP[FastAPI App]
+  end
+
+  subgraph PROD
+    CL[Cliente] -->|HTTPS| N[Gateway/NGINX/ALB]
+    N --> W1[Uvicorn/Gunicorn Worker 1]
+    N --> W2[Uvicorn/Gunicorn Worker 2]
+    W1 & W2 --> APPP[FastAPI App]
+    APPP --> REDIS[(Redis Cache)]
+    APPP --> DB[(Postgres)]
+    APPP --> OBS[Logs/Tracing/Monitoring]
+  end
+```
+
+---
+
+## 📋 Justificativas da Arquitetura
+
+### 1. Análise do Problema e Requisitos
+- **Funcionais**: calcular score, sugerir limite, explicar motivos, lidar com cenários ambíguos, expor via API com Swagger e healthcheck.  
+- **Não funcionais**: segurança (variáveis no .env, HTTPS em produção), desempenho (cache em memória), escalabilidade (stateless, múltiplos workers), usabilidade (Swagger), robustez (tratamento de erros claros).  
+- **Trade-offs**: simplicidade (dataset em arquivo) vs. escalabilidade futura (DB/Cache); regras determinísticas (explicabilidade) vs. modelos ML (maior acurácia).
+
+### 2. Clareza e Completude da Arquitetura
+- Diagramas mostram visão de contexto, componentes, fluxo de requisição e topologia de deploy.  
+- Componentes bem definidos: API, core (middlewares/erros), domínio (scoring, dataset, schemas), dados (arquivos fictícios).  
+- Interações claras: cliente → API → serviços → dataset → resposta.
+
+### 3. Seleção de Tecnologias e Justificativa
+- **FastAPI + Uvicorn**: performance, tipagem, docs automáticas.  
+- **Pydantic v2**: validação robusta e schemas claros.  
+- **Pandas/PyArrow/lxml**: leitura flexível dos formatos do desafio.  
+- **pytest**: testes simples e automatizáveis.  
+- **dotenv**: separação de configurações.  
+- Futuro: Redis (cache compartilhado), Postgres (persistência), CI/CD no GitHub Actions.
+
+### 4. Mitigação de Riscos e Vieses da IA
+- Hoje: regras determinísticas → explicabilidade clara e sem “alucinações”.  
+- Futuro: se usar LLM → aplicar RAG (buscar apenas fatos do dataset), validação humana em casos ambíguos, máscara de dados sensíveis, guardrails e monitoramento de vieses.  
+- Auditoria: logs de decisão e amostragem periódica.
+
+### 5. Escalabilidade, Manutenibilidade e Robustez
+- Stateless: múltiplos workers → fácil escalar horizontalmente.  
+- Healthcheck e logs estruturados com trace-id.  
+- Código modular: api, services, models, core, data.  
+- Fácil de evoluir: trocar dataset por banco sem mudar regras.  
+- Tratamento de erros centralizado (mensagens amigáveis).
+
+### 6. Inovação e Criatividade
+- Explicabilidade nativa (motivos claros no endpoint).  
+- Preparado para múltiplos formatos de dados (JSON, CSV, Parquet, XML).  
+- Suporte a cenários ambíguos com justificativas equilibradas.  
+- Design pronto para extensão com IA generativa (LLM + RAG).
+
+---
+
+## 📌 Resumo Executivo
+- API de crédito PME integrada ao dataset fictício do desafio.  
+- Arquitetura simples, modular e escalável.  
+- Regras determinísticas com explicabilidade clara.  
+- Tratamento de erros amigável e testes básicos incluídos.  
+- Caminho aberto para evolução com DB, cache, CI/CD e IA generativa sob RAG.
+
+
+
