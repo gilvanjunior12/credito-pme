@@ -1,13 +1,25 @@
-from fastapi import FastAPI
-from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Literal, Optional, List, Tuple
 import os
+from typing import Literal, Optional, List, Tuple
+
+from fastapi import FastAPI, Response
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, field_validator, model_validator
 from dotenv import load_dotenv
 
-# carrega variáveis do .env (se existir)
 load_dotenv()
 
-app = FastAPI(title=os.getenv("APP_NAME", "Crédito PME API"), version="0.3.0")
+app = FastAPI(
+    title=os.getenv("APP_NAME", "Crédito PME API (DEV)"),
+    version="0.3.1"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
 
 class PedidoScore(BaseModel):
@@ -65,12 +77,10 @@ def _calcular_e_motivos(p: PedidoScore) -> Tuple[ScoreResposta, List[MotivoItem]
     emp_pts = min(max(p.empregados - 1, 0) * 5, 40)
     bonus_setor = {"Comercio": 10, "Servicos": 0, "Industria": 15, "Tecnologia": 25, "Agro": 10, "Outros": 0}
     setor_pts = bonus_setor.get(p.setor, 0)
-
     score = base + fat_pts + tempo_pts + inad_pts + emp_pts + setor_pts
     score = max(0, min(score, 1000))
     aprovado = score >= 600
     limite_sugerido = int((score / 1000) * p.faturamento_mensal)
-
     motivos = [
         MotivoItem(fator="faturamento", pontos=fat_pts,
                    motivo=f"{'+' if fat_pts >= 0 else ''}{fat_pts} por faturamento mensal de ~R${int(p.faturamento_mensal)} (máx +150)"),
@@ -81,13 +91,12 @@ def _calcular_e_motivos(p: PedidoScore) -> Tuple[ScoreResposta, List[MotivoItem]
         MotivoItem(fator="empregados", pontos=emp_pts,
                    motivo=f"{'+' if emp_pts >= 0 else ''}{emp_pts} por {p.empregados} empregados (5 por extra, máx +40)"),
         MotivoItem(fator="setor", pontos=setor_pts,
-                   motivo=f"{'+' if setor_pts >= 0 else ''}{setor_pts} para setor '{p.setor}'"),
+                   motivo=f"{'+' if setor_pts >= 0 else ''}{setor_pts} para setor '{p.setor}'")
     ]
-
     return ScoreResposta(score=score, aprovado=aprovado, limite_sugerido=limite_sugerido), motivos
 
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
 def root():
     return {"mensagem": "API de Crédito PME rodando!"}
 
@@ -95,6 +104,11 @@ def root():
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
 
 
 @app.post("/v1/score", response_model=ScoreResposta)
@@ -110,5 +124,5 @@ def score_motivos(pedido: PedidoScore):
         "score": resposta.score,
         "aprovado": resposta.aprovado,
         "limite_sugerido": resposta.limite_sugerido,
-        "breakdown": motivos,
+        "breakdown": motivos
     }
