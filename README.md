@@ -5,14 +5,18 @@ API para simular **score**, **limite sugerido** e **motivos explicativos** para 
 ---
 
 ## 📑 Sumário
-- [Como rodar](#-como-rodar)
-- [Configuração (.env)](#-configuração-env)
-- [Endpoints](#-endpoints)
-- [Exemplos de requisição](#-exemplos-de-requisição)
-- [Estrutura do projeto](#-estrutura-do-projeto)
-- [Testes](#-testes)
-- [Dicas (PyCharm)](#-dicas-pycharm)
-- [Licença](#-licença)
+- [Como rodar](#como-rodar)
+- [Configuração (.env)](#configuração-env)
+- [Endpoints](#endpoints)
+- [Exemplos de requisição](#exemplos-de-requisição)
+- [Estrutura do projeto](#estrutura-do-projeto)
+- [Testes](#testes)
+- [Dicas (PyCharm)](#dicas-pycharm)
+- [Licença](#licença)
+- [Desenho da Arquitetura](#desenho-da-arquitetura)
+- [Justificativas da Arquitetura](#justificativas-da-arquitetura)
+- [Resumo Executivo](#resumo-executivo)
+
 
 ---
 
