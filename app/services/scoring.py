@@ -1,3 +1,8 @@
+# -----------------------------------------------------------------------------
+# Regras para calcular score, limite sugerido e listar "motivos" explicativos.
+# Manti regras determinísticas (sem IA) para ter previsibilidade e clareza.
+# -----------------------------------------------------------------------------
+
 from __future__ import annotations
 from typing import Dict, List, Tuple
 from math import isfinite
@@ -5,7 +10,7 @@ from math import isfinite
 from app.models.schemas import PedidoScore, ScoreResposta, MotivosResposta
 from app.services.dataset import find_empresa
 
-# Tabelas simples (pode ajustar depois)
+# Tabelas simples (ajustáveis conforme política de risco)
 RATING_BASE = {
     "A+": 880, "A": 850, "A-": 820,
     "B+": 780, "B": 750, "B-": 720,
@@ -13,18 +18,22 @@ RATING_BASE = {
     "D": 580
 }
 
+# Bônus/Penalidade por setor
 SETOR_BONUS = {
     "Tecnologia": 20, "Saúde": 10, "Serviços": 0, "Comércio": 0,
     "Indústria": 0, "Agronegócio": 0,
     "Alimentação": -5, "Educação": -5, "Transportes": -10, "Turismo": -15,
 }
 
+# Palavras-chave simples para sinalizar notícias positivas/negativas
 POS_KEYWORDS = ("investimento", "expansão", "oportunidad", "novo produto")
 NEG_KEYWORDS = ("inconsist", "insatisfa", "mudanças clim", "cuidado", "aumento no custo", "legislação")
 
 def _coalesce_payload(p: PedidoScore):
     """Completa os dados a partir do dataset quando vier só 'empresa'."""
     motivos: List[str] = []
+
+    # Começa usando o que veio no payload
     data = {
         "empresa": p.empresa,
         "receita_anual": p.receita_anual,
@@ -35,16 +44,19 @@ def _coalesce_payload(p: PedidoScore):
         "noticias_recentes": p.noticias_recentes,
     }
 
+    # Se só veio a empresa (ou vieram campos faltando), completa pelo dataset
     if p.empresa and any(v is None for k, v in data.items() if k != "empresa"):
         row = find_empresa(p.empresa)
         if not row:
+            # Empresa não existe no dataset
             raise ValueError(f"Empresa '{p.empresa}' não encontrada no dataset.")
+        # Preenche apenas campos que estão None no payload
         for k, v in row.items():
             if data.get(k) is None and v is not None:
                 data[k] = v
         motivos.append("Dados preenchidos a partir do dataset do desafio.")
 
-    # valida mínimo necessário
+    # Validação mínima obrigatória antes do cálculo
     req = ["empresa", "receita_anual", "divida_total", "prazo_pagamento_dias", "setor", "rating"]
     faltando = [k for k in req if data.get(k) in (None, "")]
     if faltando:
@@ -53,9 +65,11 @@ def _coalesce_payload(p: PedidoScore):
     return data, motivos
 
 def _ajuste_setor(setor: str) -> int:
+    """Bônus/penalidade por setor."""
     return SETOR_BONUS.get(setor, 0)
 
 def _ajuste_noticias(noticias: str) -> int:
+    """Ajuste simples por notícias (positivas/negativas)."""
     if not noticias:
         return 0
     txt = noticias.lower()
@@ -65,9 +79,10 @@ def _ajuste_noticias(noticias: str) -> int:
         return 15
     if neg and not pos:
         return -15
-    return 0
+    return 0  # neutro quando mistura
 
 def _ajuste_prazo(dias: int) -> int:
+    """Ajuste por prazo de pagamento (curto ajuda, muito longo penaliza)."""
     if dias is None:
         return 0
     if dias < 30:
@@ -79,6 +94,7 @@ def _ajuste_prazo(dias: int) -> int:
     return -20
 
 def _faixa(score: int) -> str:
+    """Mapeia o score para a faixa de risco."""
     if score >= 820:
         return "baixíssimo"
     if score >= 760:
@@ -90,9 +106,11 @@ def _faixa(score: int) -> str:
     return "altíssimo"
 
 def _clip(n: float, a: int, b: int) -> int:
+    """Garante score dentro de 300–900."""
     return int(max(a, min(b, round(n))))
 
 def _calc_limite(receita_anual: float, rating: str, ratio: float) -> int:
+    """Limite sugerido = fração da receita anual ajustada pelo rating e endividamento."""
     base_frac = {
         "A+": 0.45, "A": 0.40, "A-": 0.35,
         "B+": 0.30, "B": 0.27, "B-": 0.24,
@@ -100,11 +118,13 @@ def _calc_limite(receita_anual: float, rating: str, ratio: float) -> int:
         "D": 0.10
     }.get(rating, 0.18)
 
-    penal = 0.5 * min(max(ratio, 0), 1.0)  # até -50% quando ratio >= 1
+    # Penaliza até 50% quando dívida/receita >= 1
+    penal = 0.5 * min(max(ratio, 0), 1.0)
     frac = max(base_frac * (1.0 - penal), 0.05)
     return int(round(receita_anual * frac))
 
 def calcular_score(pedido: PedidoScore) -> ScoreResposta:
+    """Orquestra o cálculo do score, faixa e limite sugerido."""
     data, _ = _coalesce_payload(pedido)
 
     rating = str(data["rating"]).strip().upper()
@@ -132,6 +152,7 @@ def calcular_score(pedido: PedidoScore) -> ScoreResposta:
     )
 
 def explicar_motivos(pedido: PedidoScore) -> MotivosResposta:
+    """Monta a lista de mensagens que justificam o resultado para o cliente."""
     data, motivos = _coalesce_payload(pedido)
 
     receita = float(data["receita_anual"])
@@ -142,6 +163,7 @@ def explicar_motivos(pedido: PedidoScore) -> MotivosResposta:
     noticias = str(data.get("noticias_recentes") or "")
     prazo = int(data["prazo_pagamento_dias"])
 
+    # Endividamento
     if ratio <= 0.5:
         motivos.append("Endividamento/Receita saudável (até 50%).")
     elif ratio <= 1.0:
@@ -149,6 +171,7 @@ def explicar_motivos(pedido: PedidoScore) -> MotivosResposta:
     else:
         motivos.append("Endividamento elevado (acima de 100% da receita).")
 
+    # Rating
     if rating in ("A+", "A", "A-"):
         motivos.append(f"Rating {rating} favorece aprovação.")
     elif rating in ("B+", "B", "B-"):
@@ -156,25 +179,25 @@ def explicar_motivos(pedido: PedidoScore) -> MotivosResposta:
     else:
         motivos.append(f"Rating {rating} desfavorável.")
 
+    # Setor
     sb = _ajuste_setor(setor)
     if sb > 0:
         motivos.append(f"Setor '{setor}' tradicionalmente resiliente no modelo.")
     elif sb < 0:
         motivos.append(f"Setor '{setor}' com maior volatilidade no modelo.")
 
+    # Notícias
     nb = _ajuste_noticias(noticias)
     if nb > 0:
         motivos.append("Notícia recente positiva.")
     elif nb < 0:
         motivos.append("Notícia recente negativa.")
 
+    # Prazo
     pb = _ajuste_prazo(prazo)
     if pb > 5:
         motivos.append("Prazo de pagamento curto contribui positivamente.")
     elif pb < -5:
         motivos.append("Prazo de pagamento longo aumenta risco de caixa.")
 
-    return MotivosResposta(
-        empresa=str(data["empresa"]),
-        motivos=motivos
-    )
+    return MotivosResposta(empresa=str(data["empresa"]), motivos=motivos)
