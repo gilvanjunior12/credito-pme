@@ -1,6 +1,7 @@
 # Crédito PME API (FastAPI) 🚀
 
-API para simular **score**, **limite sugerido** e **motivos explicativos** para pequenas e médias empresas (PME), usando os dados fictícios fornecidos no desafio.
+API para simular **score**, **limite sugerido**, **aprovação** e **motivos explicativos**...
+
 
 ---
 
@@ -87,22 +88,35 @@ Response /v1/score (200)
   "empresa": "Empresa 29",
   "score": 894,
   "limite_sugerido": 275921,
-  "faixa_risco": "baixíssimo"
+  "faixa_risco": "baixíssimo",
+  "aprovado": true
 }
+
 ```
 
 Response /v1/score/motivos (200)
 ```powershell
 {
   "empresa": "Empresa 29",
+  "score": 894,
+  "limite_sugerido": 275921,
+  "faixa_risco": "baixíssimo",
+  "aprovado": true,
   "motivos": [
     "Dados preenchidos a partir do dataset do desafio.",
     "Endividamento/Receita saudável (até 50%).",
     "Rating A+ favorece aprovação.",
     "Setor 'Tecnologia' tradicionalmente resiliente no modelo.",
     "Notícia recente positiva."
+  ],
+  "breakdown": [
+    "Base do rating: A+ (700 pontos)",
+    "Ajuste de setor: +50",
+    "Endividamento saudável: +100",
+    "Notícia positiva: +44"
   ]
 }
+
 ```
 <details> <summary><b>Notas de cálculo</b></summary>
 
@@ -173,6 +187,8 @@ Saída esperada:
 ```powershell
 6 passed
 ```
+Os testes validam o cálculo do score, aprovação, limite, motivos e tratamento de erros de validação.
+
 
 💡 Dicas (PyCharm)
 

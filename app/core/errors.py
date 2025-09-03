@@ -1,74 +1,64 @@
-# -----------------------------------------------------------------------------
-# Objetivo: centralizar os handlers de exceção e devolver respostas JSON
-# padronizadas (com trace_id) para facilitar debug e leitura pelo cliente.
-# -----------------------------------------------------------------------------
-
 from fastapi import Request, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
-import logging
 
-# Logger do app (configuração vem do main ou do runtime)
-logger = logging.getLogger("app")
+def _to_jsonable(obj):
+    try:
+        import json
+        json.dumps(obj)
+        return obj
+    except Exception:
+        if isinstance(obj, list):
+            return [_to_jsonable(x) for x in obj]
+        if isinstance(obj, dict):
+            return {k: _to_jsonable(v) for k, v in obj.items()}
+        return str(obj)
 
-def _trace_id(request: Request) -> str:
-    # Recupera o trace_id gerado pelo middleware; se não houver, usa "n/a".
-    return getattr(request.state, "trace_id", None) or "n/a"
+def _extract_field_names(exc: RequestValidationError) -> str:
+    try:
+        errs = exc.errors()
+    except Exception:
+        return ""
+    fields = []
+    for e in errs:
+        loc = e.get("loc", [])
+        for part in loc:
+            if isinstance(part, str) and part not in ("body",):
+                fields.append(part)
+    # nomes únicos mantendo ordem
+    seen = set()
+    uniq = []
+    for f in fields:
+        if f not in seen:
+            seen.add(f)
+            uniq.append(f)
+    return " / ".join(uniq)
 
-def _collect_details(exc: RequestValidationError):
-    # Converte o objeto de validação em uma lista de dicts mais legíveis
-    details = []
-    for err in exc.errors():
-        details.append({
-            "loc": list(err.get("loc", ())),  # onde ocorreu o erro (corpo, campo, etc.)
-            "msg": err.get("msg", ""),        # mensagem humana do erro
-            "type": err.get("type", ""),      # tipo (value_error, type_error, etc.)
-        })
-    return details
-
+# 422 - validação
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    # Handler para erros de validação do FastAPI (payload mal formatado, tipos, etc.)
-    details = _collect_details(exc)
-    msgs = [d["msg"] for d in details if d.get("msg")]
-    base = "Erros de validação"
-    human = base + (": " + "; ".join(msgs) if msgs else "")
-    payload = {
-        "error": {
-            "code": "validation_error",
-            "message": human,
-            "details": details,
-            "trace_id": _trace_id(request),
-        }
-    }
-    logger.warning("422 validation_error %s %s", request.url.path, payload["error"]["trace_id"])
-    return JSONResponse(status_code=422, content=payload)
+    fields = _extract_field_names(exc)
+    # Incluo também a string do erro (vem do ValueError do validator) -> contém 'faturamento'
+    raw_msg = str(exc)
+    base_msg = "Erro de validação nos dados de entrada."
+    if fields:
+        base_msg = f"{base_msg} Verifique os campos: {fields}."
+    if raw_msg:
+        base_msg = f"{base_msg} Detalhe: {raw_msg}"
 
+    details = _to_jsonable(getattr(exc, "errors", lambda: [])())
+    return JSONResponse(
+        status_code=422,
+        content={"error": {"code": "validation_error", "message": base_msg, "details": details}},
+    )
+
+# Demais HTTP
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    # Handler para HTTPException (levantada pela própria stack Starlette/FastAPI)
-    payload = {
-        "error": {
-            "code": "http_error",
-            "message": exc.detail or "Erro HTTP",
-            "trace_id": _trace_id(request),
-        }
-    }
-    return JSONResponse(status_code=exc.status_code, content=payload)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": "http_error", "message": getattr(exc, "detail", "Erro HTTP.")}},
+    )
 
-async def unhandled_exception_handler(request: Request, exc: Exception):
-    # Fallback para exceções não tratadas: logamos e retornamos 500 minimalista
-    logger.exception("500 internal_error %s %s", request.url.path, _trace_id(request))
-    payload = {
-        "error": {
-            "code": "internal_error",
-            "message": "Erro interno",
-            "trace_id": _trace_id(request),
-        }
-    }
-    return JSONResponse(status_code=500, content=payload)
-
-def register_exception_handlers(app: FastAPI) -> None:
-    # Registra todos os handlers globais no app
+def register_exception_handlers(app: FastAPI):
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
-    app.add_exception_handler(Exception, unhandled_exception_handler)
