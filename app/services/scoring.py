@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------------------
 # Regras para calcular score, limite sugerido e listar "motivos" explicativos.
-# Manti regras determinísticas (sem IA) para ter previsibilidade e clareza.
+# Mantive regras determinísticas (sem IA) para ter previsibilidade e clareza.
 # -----------------------------------------------------------------------------
 
 from __future__ import annotations
